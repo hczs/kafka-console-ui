@@ -126,6 +126,13 @@
               @click="openThrottleDialog(record.name)"
               >限流
             </a-button>
+            <a-button
+              size="small"
+              href="javascript:;"
+              class="operation-btn"
+              @click="openRealTimeConsumeDialog(record.name)"
+              >实时消费
+            </a-button>
           </div>
         </a-table>
         <PartitionInfo
@@ -169,6 +176,23 @@
           :topic="selectDetail.resourceName"
           @closeMessageStatsDialog="closeMessageStatsDialog"
         ></SendStats>
+        <!-- 稍后写成组件 -->
+        <a-modal
+          :title="selectDetail.resourceName + ' 实时消费'"
+          :visible="showConsumeDialog"
+          :width="1000"
+          :mask="false"
+          :destroyOnClose="true"
+          :footer="null"
+          :maskClosable="false"
+          @cancel="closeConsumeDialog"
+        >
+          <div class="reveiveDiv">
+            <div v-for="(content, index) in receiveContents" :key="index">
+              {{ content }}
+            </div>
+          </div>
+        </a-modal>
       </div>
     </a-spin>
   </div>
@@ -186,6 +210,7 @@ import TopicConfig from "@/views/topic/TopicConfig";
 import UpdateReplica from "@/views/topic/UpdateReplica";
 import ConfigTopicThrottle from "@/views/topic/ConfigTopicThrottle";
 import SendStats from "@/views/topic/SendStats";
+import { getClusterInfo } from "@/utils/local-cache";
 
 export default {
   name: "Topic",
@@ -222,9 +247,16 @@ export default {
       showUpdateReplicaDialog: false,
       showThrottleDialog: false,
       showSendStatsDialog: false,
+      showConsumeDialog: false,
       filterTopic: "",
       filteredData: [],
       type: "normal",
+      ws: {},
+      wsUrl: "ws://localhost:7766/consume",
+      // 消费到的数据
+      receiveContents: [],
+      // 当前集群id
+      clusterInfoId: "",
     };
   },
   methods: {
@@ -342,9 +374,45 @@ export default {
     closeThrottleDialog() {
       this.showThrottleDialog = false;
     },
+    // 打开实时消费窗口
+    openRealTimeConsumeDialog(topic) {
+      console.log("openRealTimeConsumeDialog", topic);
+      this.showConsumeDialog = true;
+      // 初始化窗口信息
+      this.receiveContents = [];
+      this.selectDetail.resourceName = topic;
+      this.ws.send(this.clusterInfoId + "," + topic);
+    },
+    closeConsumeDialog() {
+      this.showConsumeDialog = false;
+      // 发送关闭消费的消息
+      this.ws.send("close");
+    },
+    initWebSocket() {
+      this.ws = new WebSocket(this.wsUrl);
+      this.ws.onopen = () => {
+        console.log("WebSocket 连接成功");
+      };
+      this.ws.onmessage = (event) => {
+        // 向 receivesContents 数组中追加数据
+        this.receiveContents.push(event.data);
+      };
+      this.ws.onclose = () => {
+        console.log("WebSocket 连接关闭");
+      };
+      this.ws.onerror = () => {
+        console.log("WebSocket 连接错误");
+      };
+    },
+    initClusterInfoId() {
+      const clusterInfo = getClusterInfo();
+      this.clusterInfoId = clusterInfo.id;
+    },
   },
   created() {
     this.getTopicList();
+    this.initClusterInfoId();
+    this.initWebSocket();
   },
 };
 
@@ -425,10 +493,18 @@ const columns = [
 }
 
 .operation-btn {
-  margin-right: 3%;
+  margin-right: 2%;
 }
 
 .type-select {
   width: 200px !important;
+}
+
+.reveiveDiv {
+  padding: 20px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  overflow: auto;
+  height: 250px;
 }
 </style>
