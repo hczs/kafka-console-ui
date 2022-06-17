@@ -211,6 +211,7 @@ import UpdateReplica from "@/views/topic/UpdateReplica";
 import ConfigTopicThrottle from "@/views/topic/ConfigTopicThrottle";
 import SendStats from "@/views/topic/SendStats";
 import { getClusterInfo } from "@/utils/local-cache";
+import axios from "axios";
 
 export default {
   name: "Topic",
@@ -252,7 +253,7 @@ export default {
       filteredData: [],
       type: "normal",
       ws: {},
-      wsUrl: "ws://localhost:7766/consume",
+      wsUrl: "",
       // 消费到的数据
       receiveContents: [],
       // 当前集群id
@@ -389,20 +390,24 @@ export default {
       this.ws.send("close");
     },
     initWebSocket() {
-      this.ws = new WebSocket(this.wsUrl);
-      this.ws.onopen = () => {
-        console.log("WebSocket 连接成功");
-      };
-      this.ws.onmessage = (event) => {
-        // 向 receivesContents 数组中追加数据
-        this.receiveContents.push(event.data);
-      };
-      this.ws.onclose = () => {
-        console.log("WebSocket 连接关闭");
-      };
-      this.ws.onerror = () => {
-        console.log("WebSocket 连接错误");
-      };
+      axios.get("/config.json").then((res) => {
+        console.log(res.data.webSocketUrl);
+        this.wsUrl = res.data.webSocketUrl;
+        this.ws = new WebSocket(this.wsUrl);
+        this.ws.onopen = () => {
+          console.log("WebSocket 连接成功");
+        };
+        this.ws.onmessage = (event) => {
+          // 向 receivesContents 数组中追加数据
+          this.receiveContents.push(event.data);
+        };
+        this.ws.onclose = () => {
+          console.log("WebSocket 连接关闭");
+        };
+        this.ws.onerror = () => {
+          console.log("WebSocket 连接错误");
+        };
+      });
     },
     initClusterInfoId() {
       const clusterInfo = getClusterInfo();
